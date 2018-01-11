@@ -31,6 +31,30 @@ description = "Acquire socket from systemd if available"
 
 [[configItems]]
 interface = "env"
+key = "postgresOperatorUrl"
+cliFlag = "enable-postgres-manifests"
+envVar = "SQLPAD_POSTGRES_OPERATOR_URL"
+default = ""
+description = "Discover databases using postgres manifests"
+
+[[configItems]]
+interface = "env"
+key = "postgresDefaultUser"
+cliFlag = "postgres-default-user"
+envVar = "SQLPAD_DEFAULT_POSTGRES_USER"
+default = "read-only-role"
+description = "PostgreSQL user for discovered clusters."
+
+[[configItems]]
+interface = "env"
+key = "postgresDefaultPassword"
+cliFlag = "postgres-default-password"
+envVar = "SQLPAD_DEFAULT_POSTGRES_PASSWORD"
+default = "xxxxx"
+description = "PostgreSQL password for discovered clusters."
+
+[[configItems]]
+interface = "env"
 key = "httpsPort"
 cliFlag = "https-port"
 envVar = "SQLPAD_HTTPS_PORT"

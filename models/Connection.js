@@ -1,6 +1,20 @@
 var Joi = require('joi')
 var db = require('../lib/db.js')
 var _ = require('lodash')
+var cipher = require('../lib/cipher.js')
+var config = require('../lib/config.js')
+
+var POSTGRES_DISCOVERY_ENABLED = false
+var OPERATOR_URL = ''
+
+if (config.get('postgresOperatorUrl') != '') {
+  var request = require('request')
+  OPERATOR_URL = config.get('postgresOperatorUrl')
+  console.log('Operator URL: ' + OPERATOR_URL)
+  POSTGRES_DISCOVERY_ENABLED = true
+  POSTGRES_USER = config.get('postgresDefaultUser')
+  POSTGRES_PASSWORD = config.get('postgresDefaultPassword')
+}
 
 var schema = {
   _id: Joi.string().optional(), // will be auto-gen by nedb
@@ -89,8 +103,35 @@ Connection.prototype.save = function ConnectionSave(callback) {
 
 /*  Query methods
 ============================================================================== */
+var operatorToConnection = function(database, cluster) {
+  return new Connection({
+    host: cluster,
+    _id: cluster + '-' + database,
+    name: cluster + '-' + database,
+    database: database,
+    postgresSsl: true,
+    username: cipher(POSTGRES_USER),
+    password: cipher(POSTGRES_PASSWORD),
+    driver: 'postgres'
+  })
+}
 
 Connection.findOneById = function ConnectionFindOneById(id, callback) {
+  if (POSTGRES_DISCOVERY_ENABLED) {
+    console.log('looking for single database:' + id)
+    Connection.findAll((err, clusters) => {
+      c = _.filter(clusters, e => {
+        return e._id == id
+      })
+      if (c) {
+        return callback(false, c[0])
+      } else {
+        return callback()
+      }
+    })
+    return
+  }
+
   db.connections.findOne({ _id: id }).exec(function(err, doc) {
     if (err) return callback(err)
     if (!doc) return callback()
@@ -99,6 +140,28 @@ Connection.findOneById = function ConnectionFindOneById(id, callback) {
 }
 
 Connection.findAll = function ConnectionFindAll(callback) {
+  if (POSTGRES_DISCOVERY_ENABLED) {
+    request(OPERATOR_URL + '/databases', { json: true }, (err, res, body) => {
+      if (err) {
+        console.error('request to operator failed: ' + err)
+        return callback(null, [])
+      } else {
+        clusters = []
+        _.map(body, (cs, d) => {
+          _.map(cs, c => {
+            clusters.push(operatorToConnection(c, d))
+          })
+        })
+
+        console.log(
+          'retrieved ' + clusters.length + ' clusters from operator API'
+        )
+        return callback(null, clusters)
+      }
+    })
+    return
+  }
+
   db.connections.find({}).exec(function(err, docs) {
     if (err) return callback(err)
     var connections = docs.map(function(doc) {
